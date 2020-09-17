@@ -1,0 +1,309 @@
+import React, {Component} from 'react';
+import axios from 'react-native-axios';
+import MapView, {PROVIDER_GOOGLE, Marker} from 'react-native-maps';
+import Directions from 'react-native-maps-directions';
+import Geolocation from '@react-native-community/geolocation';
+import Tts from 'react-native-tts';
+import MapViewNavigation, {
+  NavigationModes,
+  TravelModeBox,
+  TravelIcons,
+  Geocoder,
+  TravelModes,
+  DirectionsListView,
+  ManeuverView,
+  DurationDistanceView,
+} from 'react-native-maps-navigation';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
+
+import Footer from './Footer_navigation.js';
+import Nav from './nav.js';
+
+import env from '../server/enviroment.js';
+
+import MapStyle from './loader/map.json';
+import Styles, {AppColors, AppFonts} from './loader/styles.js';
+
+navigator.geolocation = require('@react-native-community/geolocation');
+const USE_METHODS = true;
+
+class NavigationMap extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      region: {
+          latitude: 25.5487519,
+          longitude: -103.4719567,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+      
+      },
+      order: null,
+      destiny: null,
+      house: null,
+      destination: '',
+      origin: null,
+      truck: null,
+      isFlipped: false,
+      isNavigation: false,
+      route: false,
+      step: false,
+
+      API_KEY_GOOGLE: 'AIzaSyAqmcb_gKOcHu8nRu0tGMO-W0wK_OkBfHY',
+    };
+  }
+
+  direction = (res) => {
+    var order = this.state.order;
+    order.distance = parseInt(res.distance) + 'kilometros';
+    order.tiempo = parseInt(res.duration) + 'Minutos';
+    this.setState({order: order});
+  };
+
+  goDisplayRoute() {
+    if (USE_METHODS) {
+      this.refNavigation
+        .displayRoute(this.state.origin, this.state.destination, {
+          mode: this.state.travelMode,
+        })
+        .then((route) => {
+          console.log(route);
+        });
+    } else {
+      this.setState({
+        navigationMode: NavigationModes.ROUTE,
+      });
+    }
+  }
+
+  /**
+   * goNavigateRoute
+   * @void
+   */
+  goNavigateRoute() {
+    debugger
+    if (USE_METHODS) {
+      this.refNavigation
+        .navigateRoute(this.state.origin, this.state.destination, {
+          mode: this.state.travelMode,
+        })
+        .then((route) => {
+          this.setState({
+            isNavigation: true,
+          });
+        });
+    } else {
+      this.setState({
+        navigationMode: NavigationModes.NAVIGATION,
+      });
+    }
+  }
+
+  /**
+   * validateRoute
+   * @returns {boolean}
+   */
+  validateRoute() {
+    if (this.state.destination.length >= 3) return true;
+
+    Alert.alert('Address required', 'You need to enter an address first');
+
+    return false;
+  }
+
+  deliver = (order) => {
+    console.log(order);
+  };
+
+  formatInstruction(value) {
+    if (value !== undefined) {
+      if (value.instructions !== undefined) {
+        const regex = /(<([^>]+)>)/gi;
+        var str = value.instructions.replace(regex, '');
+        Tts.speak(str, {
+          androidParams: {KEY_PARAM_PAN: -1, KEY_PARAM_VOLUME: 1},
+        });
+      }
+    }
+  }
+
+  componentDidMount() {
+    // this.forceUpdate()
+    this.setState({order:this.props.route.params.order })
+    Geolocation.watchPosition(
+      ({coords}) => {
+        this.setState({
+          truck: {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            latitudeDelta: 0.0143,
+            longitudeDelta: 0.034,
+          },
+          house: {
+            latitude: parseFloat(this.state.order.dir_latitud),
+            longitude: parseFloat(this.state.order.dir_longitud),
+            latitudeDelta: 0.0143,
+            longitudeDelta: 0.034,
+          },
+          origin: {
+            latitude: coords.latitude,
+            longitude:coords.latitude,
+            latitudeDelta: 0.0143,
+            longitudeDelta: 0.034,
+          },
+          isNavigation: true,
+          destination: this.state.order.dir_direccion_completa,
+        });
+        
+      },
+      (error) => {},
+      {
+        enableHighAccuracy: false,
+        timeout: 2000,
+        maximumAge: 100,
+        distanceFilter: 10,
+      },
+    );
+  }
+
+  render() {
+    const {
+      region,
+      origin,
+      destination,
+      API_KEY_GOOGLE,
+      PROVIDER_GOOGLE,
+      truck,
+      house,
+      order,
+    } = this.state;
+    return (
+      <View style={styles.container}>
+        <View style={styles.map}></View>
+        <MapView
+          provider={PROVIDER_GOOGLE} // remove if not using Google Maps
+          style={Styles.map}
+          loadingEnabled={true}
+          // customMapStyle={MapStyle}
+          showsUserLocation
+          followsUserLocation={true}
+          ref={(ref) => (this.refMap = ref)}>
+          <MapViewNavigation
+            origin={origin}
+            
+            language={'es'}
+            destination={destination}
+            navigationMode={NavigationModes.IDLE}
+            travelMode={TravelModes.DRIVING}
+            ref={(ref) => {
+              
+              this.refNavigation = ref}}
+            map={() => this.refMap}
+            apiKey={API_KEY_GOOGLE}
+            simulate={true}
+            onRouteChange={(route) => {
+              this.setState({route});
+            }}
+            onStepChange={(step, nextStep) => {
+              this.formatInstruction(step);
+              this.formatInstruction(nextStep);
+              this.setState({step, nextStep});
+            }}
+            displayDebugMarkers={true}
+            onNavigationStarted={(route) =>
+              console.log('Navigation Started', route)
+            }
+            onNavigationCompleted={(route) =>
+              this.setState({isNavigation: false})
+            }
+          />
+          
+        </MapView>
+
+        <View style={styles.content}>
+          <Text style={styles.txtBlack}>Detalles del Pedido</Text>
+          <ScrollView vertically={true} style={{marginBottom: '4%'}}>
+            <Text>Cliente:</Text>
+            <Text>{order.cli_nombre}</Text>
+            <Text>Dirección:</Text>
+            <Text>{order.dir_direccion_completa}</Text>
+            <Text>Observación:</Text>
+            <Text>{order.ped_observaciones}</Text>
+            <Text>Formas de Pago:</Text>
+            <Text>{order.mp_descripcion}</Text>
+            <Text>Distancia:</Text>
+            <Text>{order.distance}</Text>
+            <Text>LLegada estimada:</Text>
+            <Text>{order.tiempo}</Text>
+          </ScrollView>
+
+          {/* this.goNavigateRoute(); */}
+          <TouchableOpacity
+            style={styles.btnEnd}
+            onPress={() => {
+              this.goNavigateRoute();
+            }}>
+            <Text style={styles.txtWithe}>Iniciar Viaje</Text>
+          </TouchableOpacity>
+          {/* <TouchableOpacity
+            style={styles.btnEnd}
+            onPress={() => {
+              this.deliver(order);
+            }}>
+            <Text style={styles.txtWithe}>Entregar</Text>
+          </TouchableOpacity> */}
+        </View>
+      </View>
+    );
+  }
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#000',
+  },
+  mapView: {
+    height: '60%',
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  content: {
+    padding: '5%',
+    height: '40%',
+    backgroundColor: '#fff',
+  },
+  txtBlack: {
+    color: '#000',
+    fontWeight: 'bold',
+    fontSize: 17,
+    textAlign: 'center',
+  },
+  txtWithe: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 17,
+  },
+  btnEnd: {
+    backgroundColor: '#eb3b2f',
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '4%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  tagInfo: {
+    backgroundColor: '#fff',
+  },
+});
+
+export default NavigationMap;

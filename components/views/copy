@@ -1,0 +1,231 @@
+import React, {Component} from 'react';
+import axios from 'react-native-axios';
+import MapView, { PROVIDER_GOOGLE, Marker  } from 'react-native-maps';
+import Directions from "react-native-maps-directions"
+import Geolocation from '@react-native-community/geolocation';
+import Tts from 'react-native-tts';
+import MapViewNavigation, { NavigationModes, TravelModeBox, TravelIcons, Geocoder, TravelModes, DirectionsListView, ManeuverView, DurationDistanceView } from 'react-native-maps-navigation';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView
+} from 'react-native';
+
+import Footer from './Footer_navigation.js'
+import Nav from './nav.js'
+
+import env from '../server/enviroment.js';
+
+import MapStyle  from "./loader/map.json"
+
+class NavigationMap extends  Component{
+  constructor(props) {
+    super(props);
+    this.state = {
+      region: null,
+      origin: {
+        latitude: 25.5411529,
+        longitude: -103.3254404
+
+      },
+      truck:{
+        latitude: 25.5411529,
+        longitude: -103.3254404
+      },
+      order:props.route.params.order,
+      house: null,
+      API_KEY_GOOGLE: "AIzaSyAqmcb_gKOcHu8nRu0tGMO-W0wK_OkBfHY",
+     
+       
+    };
+    
+  }
+
+  
+  direction = (res) => {
+    var order = this.state.order
+    order.distance = parseInt(res.distance)+ "kilometros"
+    order.tiempo = parseInt(res.duration)+ "Minutos"
+    this.setState({order:order})
+
+  }
+
+  
+  deliver= () => {
+    alert("entregar")
+  }
+
+  async componentDidMount () {
+        
+    Geolocation.watchPosition(({coords})=> {
+      
+      console.log(coords)
+      this.setState({
+                  truck: {
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                  },
+                  house: {
+                    latitude: 25.5411529,
+                    longitude: -103.3254404,
+                  },
+                  region:{
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    latitudeDelta: 0.0143,
+                    longitudeDelta: 0.034
+                  },
+                  origin:{
+                    latitude: parseFloat(this.state.order.dir_latitud),
+                    longitude: parseFloat(this.state.order.dir_longitud), 
+                    latitudeDelta: 0.0143,
+                    longitudeDelta: 0.034
+                  }
+                });
+    
+
+                // Tts.speak('Recalculando', { androidParams: { KEY_PARAM_PAN: -1, KEY_PARAM_VOLUME: 1 } });
+                // Tts.speak('Dirígete a '+this.state.order.dir_direccion_completa, { androidParams: { KEY_PARAM_PAN: -1, KEY_PARAM_VOLUME: 1 } });
+                // Tts.speak('Dirígete por '+this.state.order.dir_direccion_completa, { androidParams: { KEY_PARAM_PAN: -1, KEY_PARAM_VOLUME: 1 } });
+    },(error)=> {
+      this.componentDidMount()
+    },{ enableHighAccuracy: false, timeout: 2000, maximumAge: 100, distanceFilter: 10 }, );
+  }
+
+ render() {
+  const {region,origin , API_KEY_GOOGLE, PROVIDER_GOOGLE,truck,house,order} = this.state; 
+  return (
+   
+    <View  style={styles.container}>
+        
+        <View style={styles.map}></View>
+        <MapView
+          provider={PROVIDER_GOOGLE} // remove if not using Google Maps
+          style={styles.mapView}
+          region={region}
+          loadingEnabled={true}
+          customMapStyle={MapStyle}
+          minZoomLevel={20}
+          maxZoomLevel={20}
+          ref={ref => this.refMap = ref}
+          // rotateEnabled={false}
+          // scrollEnabled={false}
+        >
+          <Marker
+              coordinate={truck}
+              image={require('../assets/icons/mover-truck.png')} 
+              
+          >
+          </Marker>
+          
+          <MapViewNavigation
+              origin={this.state.origin}
+              destination={this.state.destination}
+              navigationMode={this.state.navigationMode}
+              travelMode={this.state.travelMode}
+              ref={ref => this.refNavigation = ref}
+              map={() => this.refMap}
+              apiKey={ API_KEY_GOOGLE}
+              simulate={true}
+              onRouteChange={route => this.setState({route})}
+              onStepChange={(step, nextStep) => this.setState({step, nextStep})}
+              displayDebugMarkers={true}
+              onNavigationStarted={route => console.log("Navigation Started")}
+              onNavigationCompleted={route => this.setState({isNavigation: false})}
+          />
+        {/* <Directions
+          origin={origin}
+          destination={region}
+          apikey={ API_KEY_GOOGLE }
+          strokeWidth={7}
+          strokeColor="#078adb"
+          language={"es"}
+          mode={"DRIVING"}
+          optimizeWaypoints={true}
+          precision={"high"}
+          onReady={(result)=> {
+            this.direction(result)}}
+        ></Directions> */}
+          
+        </MapView>
+        
+
+
+        <View style={styles.content}>
+          <Text style={styles.txtBlack}>Detalles del Pedido</Text>
+          <ScrollView vertically={true} style={{marginBottom: '4%'}}> 
+            <Text>Cliente:</Text>
+            <Text>{order.cli_nombre}</Text>
+            <Text>Dirección:</Text>
+            <Text>{order.dir_direccion_completa}</Text>
+            <Text>Observación:</Text>
+            <Text>{order.ped_observaciones}</Text>
+            <Text>Formas de Pago:</Text>
+            <Text>{order.mp_descripcion}</Text>
+            <Text>Distancia:</Text>
+            <Text>{order.distance}</Text>
+            <Text>LLegada estimada:</Text>
+            <Text>{order.tiempo}</Text>
+          </ScrollView>
+          {/* <Text>Recibir</Text> */}
+
+          <TouchableOpacity style={styles.btnEnd} onPress={()=>{
+            this.deliver(order)
+          }} >
+            <Text style={styles.txtWithe}>Entregar</Text>
+          </TouchableOpacity>
+        </View>
+    </View>
+  );
+ }
+
+ 
+};
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#000'
+  },  
+  mapView: {
+    height: '60%',
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  content: {
+    padding: '5%',
+    height: '40%',
+    backgroundColor:"#fff"
+  },
+  txtBlack: {
+    color: "#000",
+    fontWeight: 'bold',
+    fontSize: 17,
+    textAlign:'center'
+  }, 
+  txtWithe: {
+    color: "#fff",
+    fontWeight: 'bold',
+    fontSize: 17
+  },  
+  btnEnd: {
+    backgroundColor: "#eb3b2f",
+    textAlign: "center",
+    justifyContent: "center",
+    alignItems: "center",
+    padding:'4%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+
+  },
+  tagInfo:{
+    backgroundColor: "#fff",
+    
+  }
+});
+
+export default NavigationMap;
